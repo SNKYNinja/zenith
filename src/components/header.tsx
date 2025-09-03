@@ -54,12 +54,17 @@ export function HeaderBar() {
         }
     }
 
+    function handleGenerateTickets() {
+        // Simple placeholder until fresh implementation is added
+        toast.info("Generate Tickets will be implemented next.");
+    }
+
     return (
         <Card className="p-4">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-lg font-semibold text-balance">
-                        E‑Ticketing Dashboard
+                        Zenith
                     </h1>
                     <p className="text-sm text-muted-foreground">
                         Manage entries from Google Sheets. Only essential fields
@@ -86,6 +91,9 @@ export function HeaderBar() {
                         </label>
                     </div>
                     <RefreshButton />
+                    <Button onClick={handleGenerateTickets} variant="outline">
+                        Generate Tickets
+                    </Button>
                     <Button onClick={handleGenerateIds} disabled={generating}>
                         {generating ? "Generating…" : "Generate Unique IDs"}
                     </Button>

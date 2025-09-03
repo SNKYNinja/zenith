@@ -45,7 +45,7 @@ export function RefreshButton({ className }: { className?: string }) {
             disabled={loading}
             className={className}
         >
-            <RotateCcw className="mr-2 h-4 w-4" />
+            <RotateCcw className="h-4 w-4" />
             {loading ? "Refreshing..." : "Refresh"}
         </Button>
     );

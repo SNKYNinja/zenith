@@ -12,6 +12,8 @@ type CacheShape = {
 };
 const TTL_MS = 30_000;
 
+export const dynamic = "force-dynamic";
+
 function isEnvReady() {
     return Boolean(
         config.google.spreadsheetId &&
@@ -36,14 +38,19 @@ export async function GET(req: NextRequest) {
             const start = (page - 1) * pageSize;
             const end = start + pageSize;
             const pageEntries = cached.entries.slice(start, end);
-            return NextResponse.json({
-                entries: pageEntries,
-                total: cached.total,
-                page,
-                pageSize,
-                totalPages: Math.max(1, Math.ceil(cached.total / pageSize)),
-                cache: "HIT",
-            });
+            return NextResponse.json(
+                {
+                    entries: pageEntries,
+                    total: cached.total,
+                    page,
+                    pageSize,
+                    totalPages: Math.max(1, Math.ceil(cached.total / pageSize)),
+                    cache: "HIT",
+                },
+                {
+                    headers: { "Cache-Control": "no-store" },
+                },
+            );
         }
 
         let entries: any[] = [];
@@ -81,19 +88,27 @@ export async function GET(req: NextRequest) {
         const end = start + pageSize;
         const pageEntries = entries.slice(start, end);
 
-        return NextResponse.json({
-            entries: pageEntries,
-            total,
-            page,
-            pageSize,
-            totalPages: Math.max(1, Math.ceil(total / pageSize)),
-            cache: "MISS",
-            source: useMock ? "mock" : "sheets",
-        });
+        return NextResponse.json(
+            {
+                entries: pageEntries,
+                total,
+                page,
+                pageSize,
+                totalPages: Math.max(1, Math.ceil(total / pageSize)),
+                cache: "MISS",
+                source: useMock ? "mock" : "sheets",
+            },
+            {
+                headers: { "Cache-Control": "no-store" },
+            },
+        );
     } catch (error: any) {
         return NextResponse.json(
             { error: error.message || "Failed to load entries" },
-            { status: 500 },
+            {
+                status: 500,
+                headers: { "Cache-Control": "no-store" },
+            },
         );
     }
 }

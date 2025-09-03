@@ -36,7 +36,10 @@ type ApiResponse = {
     totalPages: number;
 };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) =>
+    fetch(url, { cache: "no-store", next: { revalidate: 0 } }).then((r) =>
+        r.json(),
+    );
 
 export function EntriesTable() {
     const [page, setPage] = useState(1);
@@ -53,7 +56,6 @@ export function EntriesTable() {
         },
     );
 
-    // refresh on external event (after generating IDs, etc.)
     useEffect(() => {
         const h = () => mutate();
         window.addEventListener("entries:refresh", h);
@@ -77,13 +79,13 @@ export function EntriesTable() {
     function nextPage() {
         if (!data) return;
         if (page < data.totalPages) {
-            setSelected(new Set()); // clear selection when page changes
+            setSelected(new Set());
             setPage(page + 1);
         }
     }
     function prevPage() {
         if (page > 1) {
-            setSelected(new Set()); // clear selection when page changes
+            setSelected(new Set());
             setPage(page - 1);
         }
     }
@@ -94,11 +96,8 @@ export function EntriesTable() {
 
     function toggleAllOnPage() {
         const next = new Set(selected);
-        if (allOnPageSelected) {
-            currentIds.forEach((id) => next.delete(id));
-        } else {
-            currentIds.forEach((id) => next.add(id));
-        }
+        if (allOnPageSelected) currentIds.forEach((id) => next.delete(id));
+        else currentIds.forEach((id) => next.add(id));
         setSelected(next);
     }
 
