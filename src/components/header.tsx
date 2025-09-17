@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSWRConfig } from "swr";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/refresh-button";
+import { generateUniqueIds } from "@/actions/id";
+import { Loader2 } from "lucide-react";
+import { sendEmail } from "@/actions/email";
 
 export function HeaderBar() {
     const [testMode, setTestMode] = useState(false);
-    const [generating, setGenerating] = useState(false);
-    const { mutate } = useSWRConfig();
+
+    const [idsPending, startIdsTransition] = useTransition();
+    const [ticketsPending, startTicketsTransition] = useTransition();
+    const [emailsPending, startEmailTransition] = useTransition();
 
     useEffect(() => {
         const saved = localStorage.getItem("et_test_mode");
@@ -22,41 +26,63 @@ export function HeaderBar() {
         localStorage.setItem("et_test_mode", String(testMode));
     }, [testMode]);
 
-    async function handleGenerateIds() {
-        setGenerating(true);
-        try {
-            const res = await fetch("/api/entries/generate-ids", {
-                method: "POST",
-            });
-            const json = await res.json();
-            if (!res.ok)
-                throw new Error(json.error || "Failed to generate Unique IDs");
+    function handleGenerateIds() {
+        startIdsTransition(async () => {
+            try {
+                const result = await generateUniqueIds();
 
-            toast.success(
-                `Generated Unique IDs for ${json.updatedCount ?? 0} entries`,
-            );
+                if (result.error) throw new Error(result.error);
 
-            await fetch("/api/entries/refresh", { method: "POST" });
-            await mutate(
-                (key) =>
-                    typeof key === "string" && key.startsWith("/api/entries"),
-                undefined,
-                { revalidate: true },
-            );
+                toast.success(
+                    `Generated Unique IDs for ${result.updatedCount} entries`,
+                );
 
-            window.dispatchEvent(new CustomEvent("entries:refresh"));
-        } catch (e: any) {
-            toast.error(
-                e?.message || "Something went wrong while generating IDs",
-            );
-        } finally {
-            setGenerating(false);
-        }
+                window.dispatchEvent(new CustomEvent("entries:refresh"));
+            } catch (e: any) {
+                toast.error(
+                    e?.message || "Something went wrong while generating IDs",
+                );
+            }
+        });
     }
 
     function handleGenerateTickets() {
-        // Simple placeholder until fresh implementation is added
-        toast.info("Generate Tickets will be implemented next.");
+        startTicketsTransition(async () => {
+            try {
+                let response = await fetch("/api/generate-qr", {
+                    method: "GET",
+                });
+                if (!response.ok)
+                    throw new Error("Failed to generate QR codes");
+
+                response = await fetch("/api/generate-ticket", {
+                    method: "GET",
+                });
+
+                if (!response.ok) throw new Error("Failed to generate tickets");
+
+                const data = await response.json();
+
+                toast.success(`${data.generated} tickets created!`);
+            } catch (e: any) {
+                toast.error(
+                    e?.message ||
+                        "Something went wrong while generating tickets",
+                );
+            }
+        });
+    }
+
+    function handleEmail() {
+        startEmailTransition(async () => {
+            try {
+                await sendEmail();
+                toast.success("Emails sent successfully!");
+            } catch (err) {
+                console.error(err);
+                toast.error("Something unexpected happenend!");
+            }
+        });
     }
 
     return (
@@ -91,11 +117,31 @@ export function HeaderBar() {
                         </label>
                     </div>
                     <RefreshButton />
-                    <Button onClick={handleGenerateTickets} variant="outline">
-                        Generate Tickets
+                    <Button
+                        variant="destructive"
+                        onClick={handleEmail}
+                        disabled={emailsPending}
+                    >
+                        {emailsPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        {emailsPending ? "Sending…" : "Send Mails"}
                     </Button>
-                    <Button onClick={handleGenerateIds} disabled={generating}>
-                        {generating ? "Generating…" : "Generate Unique IDs"}
+                    <Button
+                        onClick={handleGenerateTickets}
+                        variant="outline"
+                        disabled={ticketsPending}
+                    >
+                        {ticketsPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        {ticketsPending ? "Generating…" : "Generate Tickets"}
+                    </Button>
+                    <Button onClick={handleGenerateIds} disabled={idsPending}>
+                        {idsPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        {idsPending ? "Generating…" : "Generate Unique IDs"}
                     </Button>
                 </div>
             </div>

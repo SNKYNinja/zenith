@@ -1,18 +1,33 @@
-// GET /api/entries?page=1&pageSize=50
-import { type NextRequest, NextResponse } from "next/server";
-import { readEntries } from "@/lib/google-sheets";
+"use server";
+
+import { readEntries } from "@/actions/sheet";
 import { config } from "@/lib/config";
 import { mockEntries } from "@/lib/mock-data";
-import { cacheGet, cacheSet } from "@/lib/entries-cache";
+import { cacheGet, cacheSet } from "@/actions/cache";
 
-// type CacheShape and TTL stay; CacheShape remains for type safety
 type CacheShape = {
     entries: any[];
     total: number;
 };
-const TTL_MS = 30_000;
 
-export const dynamic = "force-dynamic";
+type GetEntriesParams = {
+    page?: number;
+    pageSize?: number;
+    revalidate?: boolean;
+};
+
+type GetEntriesResult = {
+    entries: any[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    cache: "HIT" | "MISS";
+    source?: "mock" | "sheets";
+    error?: string;
+};
+
+const TTL_MS = 30_000;
 
 function isEnvReady() {
     return Boolean(
@@ -22,14 +37,13 @@ function isEnvReady() {
     );
 }
 
-export async function GET(req: NextRequest) {
+export async function getEntries(
+    params: GetEntriesParams = {},
+): Promise<GetEntriesResult> {
     try {
-        const { searchParams } = new URL(req.url);
-        const page = Number(searchParams.get("page") || "1");
-        const pageSize = Number(
-            searchParams.get("pageSize") || config.ui.pageSize || 50,
-        );
-        const force = searchParams.get("revalidate") === "true";
+        const page = params.page || 1;
+        const pageSize = params.pageSize || config.ui.pageSize || 50;
+        const force = params.revalidate === true;
 
         let useMock = config.google.useMock || !isEnvReady();
 
@@ -38,19 +52,15 @@ export async function GET(req: NextRequest) {
             const start = (page - 1) * pageSize;
             const end = start + pageSize;
             const pageEntries = cached.entries.slice(start, end);
-            return NextResponse.json(
-                {
-                    entries: pageEntries,
-                    total: cached.total,
-                    page,
-                    pageSize,
-                    totalPages: Math.max(1, Math.ceil(cached.total / pageSize)),
-                    cache: "HIT",
-                },
-                {
-                    headers: { "Cache-Control": "no-store" },
-                },
-            );
+
+            return {
+                entries: pageEntries,
+                total: cached.total,
+                page,
+                pageSize,
+                totalPages: Math.max(1, Math.ceil(cached.total / pageSize)),
+                cache: "HIT",
+            };
         }
 
         let entries: any[] = [];
@@ -88,27 +98,24 @@ export async function GET(req: NextRequest) {
         const end = start + pageSize;
         const pageEntries = entries.slice(start, end);
 
-        return NextResponse.json(
-            {
-                entries: pageEntries,
-                total,
-                page,
-                pageSize,
-                totalPages: Math.max(1, Math.ceil(total / pageSize)),
-                cache: "MISS",
-                source: useMock ? "mock" : "sheets",
-            },
-            {
-                headers: { "Cache-Control": "no-store" },
-            },
-        );
+        return {
+            entries: pageEntries,
+            total,
+            page,
+            pageSize,
+            totalPages: Math.max(1, Math.ceil(total / pageSize)),
+            cache: "MISS",
+            source: useMock ? "mock" : "sheets",
+        };
     } catch (error: any) {
-        return NextResponse.json(
-            { error: error.message || "Failed to load entries" },
-            {
-                status: 500,
-                headers: { "Cache-Control": "no-store" },
-            },
-        );
+        return {
+            entries: [],
+            total: 0,
+            page: params.page || 1,
+            pageSize: params.pageSize || config.ui.pageSize || 50,
+            totalPages: 0,
+            cache: "MISS",
+            error: error.message || "Failed to load entries",
+        };
     }
 }

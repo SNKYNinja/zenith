@@ -1,7 +1,6 @@
 "use client";
 
-import useSWR from "swr";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useTransition } from "react";
 import { Card } from "@/components/ui/card";
 import {
     Table,
@@ -15,6 +14,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getEntries } from "@/actions/entries";
+import { toast } from "sonner";
 
 type Entry = {
     registrationNumber: string;
@@ -28,39 +29,79 @@ type Entry = {
     rowNumber: number;
 };
 
-type ApiResponse = {
+type GetEntriesResult = {
     entries: Entry[];
     total: number;
     page: number;
     pageSize: number;
     totalPages: number;
+    cache: "HIT" | "MISS";
+    source?: "mock" | "sheets";
+    error?: string;
 };
 
-const fetcher = (url: string) =>
-    fetch(url, { cache: "no-store", next: { revalidate: 0 } }).then((r) =>
-        r.json(),
-    );
+interface EntriesTableProps {
+    initialData?: GetEntriesResult;
+}
 
-export function EntriesTable() {
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(50);
+export function EntriesTable({ initialData }: EntriesTableProps) {
+    const [page, setPage] = useState(initialData?.page ?? 1);
+    const [pageSize, setPageSize] = useState(initialData?.pageSize ?? 50);
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState<Set<number>>(new Set());
-
-    const { data, isLoading, mutate } = useSWR<ApiResponse>(
-        `/api/entries?page=${page}&pageSize=${pageSize}`,
-        fetcher,
-        {
-            revalidateOnFocus: false,
-            keepPreviousData: true,
-        },
+    const [data, setData] = useState<GetEntriesResult | null>(
+        initialData ?? null,
     );
+    const [isPending, startTransition] = useTransition();
+
+    const fetchData = async (
+        newPage: number,
+        newPageSize: number,
+        revalidate = false,
+    ) => {
+        startTransition(async () => {
+            try {
+                const result = await getEntries({
+                    page: newPage,
+                    pageSize: newPageSize,
+                    revalidate,
+                });
+
+                if (result.error) {
+                    console.error("Failed to fetch entries:", result.error);
+                    toast.error("Failed to fetch entries");
+                } else {
+                    setData(result);
+                }
+            } catch (error) {
+                console.error("Unexpected error:", error);
+                toast.error("Unexpected error!");
+            }
+        });
+    };
+
+    // Fetch data when page or pageSize changes
+    useEffect(() => {
+        // Don't fetch if we already have initial data for the current page/pageSize
+        if (
+            initialData &&
+            page === initialData.page &&
+            pageSize === initialData.pageSize
+        ) {
+            return;
+        }
+        fetchData(page, pageSize);
+    }, [page, pageSize, initialData]);
 
     useEffect(() => {
-        const h = () => mutate();
-        window.addEventListener("entries:refresh", h);
-        return () => window.removeEventListener("entries:refresh", h);
-    }, [mutate]);
+        function handleRefresh() {
+            fetchData(page, pageSize, true); // force revalidate from server action
+        }
+
+        window.addEventListener("entries:refresh", handleRefresh);
+        return () =>
+            window.removeEventListener("entries:refresh", handleRefresh);
+    }, [page, pageSize]);
 
     const entries = data?.entries || [];
 
@@ -83,6 +124,7 @@ export function EntriesTable() {
             setPage(page + 1);
         }
     }
+
     function prevPage() {
         if (page > 1) {
             setSelected(new Set());
@@ -108,6 +150,8 @@ export function EntriesTable() {
         setSelected(next);
     }
 
+    const isLoading = isPending || (!data && !initialData);
+
     return (
         <Card className="p-4">
             <div className="flex flex-col gap-3">
@@ -130,6 +174,7 @@ export function EntriesTable() {
                                 setSelected(new Set());
                                 setPageSize(Number(e.target.value));
                             }}
+                            disabled={isPending}
                         >
                             {[25, 50, 100, 200].map((n) => (
                                 <option key={n} value={n}>
@@ -145,6 +190,11 @@ export function EntriesTable() {
                         {isLoading
                             ? "Loading…"
                             : `Total: ${data?.total ?? 0} • Page ${data?.page ?? 1} / ${data?.totalPages ?? 1}`}
+                        {data?.error && (
+                            <span className="text-red-500 ml-2">
+                                Error: {data.error}
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-sm">
@@ -281,7 +331,7 @@ export function EntriesTable() {
                 <Button
                     variant="outline"
                     onClick={prevPage}
-                    disabled={!data || (data?.page ?? 1) <= 1}
+                    disabled={!data || (data?.page ?? 1) <= 1 || isPending}
                 >
                     Previous
                 </Button>
@@ -292,7 +342,9 @@ export function EntriesTable() {
                     variant="outline"
                     onClick={nextPage}
                     disabled={
-                        !data || (data?.page ?? 1) >= (data?.totalPages ?? 1)
+                        !data ||
+                        (data?.page ?? 1) >= (data?.totalPages ?? 1) ||
+                        isPending
                     }
                 >
                     Next

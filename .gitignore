@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 zenith.json
+
+ticket/*
+qr/*
+public/base_ticket.png
