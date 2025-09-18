@@ -3,9 +3,45 @@ import fs from "fs";
 import QRCode from "qrcode";
 import { readEntries } from "@/actions/sheet";
 import { createCanvas, loadImage, registerFont } from "canvas";
+import { Entry } from "./config";
 
 function now() {
     return new Date().toISOString();
+}
+
+// Helper function to force garbage collection and add delay
+async function forceGarbageCollection() {
+    if (global.gc) {
+        global.gc();
+    }
+    // Small delay to allow memory cleanup
+    await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+// Process entries in batches to prevent memory overflow
+async function processBatch(entries: Entry[], batchSize: number, processor) {
+    const results = { generated: 0, skipped: 0, errors: [] };
+
+    for (let i = 0; i < entries.length; i += batchSize) {
+        const batch = entries.slice(i, i + batchSize);
+        console.log(
+            `[${now()}] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(entries.length / batchSize)} (${batch.length} entries)`,
+        );
+
+        const batchResults = await processor(batch);
+        results.generated += batchResults.generated;
+        results.skipped += batchResults.skipped;
+        results.errors.push(...(batchResults.errors || []));
+
+        // Force garbage collection between batches
+        await forceGarbageCollection();
+
+        console.log(
+            `[${now()}] Batch completed. Generated: ${batchResults.generated}, Skipped: ${batchResults.skipped}`,
+        );
+    }
+
+    return results;
 }
 
 export async function generateQrFiles() {
@@ -18,49 +54,58 @@ export async function generateQrFiles() {
         return { generated: 0, skipped: 0, errors: ["No entries found"] };
     }
 
-    let generated = 0;
-    let skipped = 0;
-
     const start = Date.now();
     console.log(
         `[${now()}] Starting QR generation for ${entries.length} entries`,
     );
 
-    for (const entry of entries) {
-        try {
-            const filename = `${entry.registrationNumber}.png`;
-            const filepath = path.join(dir, filename);
+    // Process QR codes in batches of 50
+    const batchSize = 50;
+    const results = await processBatch(entries, batchSize, async (batch) => {
+        let generated = 0;
+        let skipped = 0;
+        const errors = [];
 
-            const qrData = JSON.stringify({
-                registration: entry.registrationNumber,
-                name: entry.name,
-                email: entry.email,
-                uid: entry.uniqueId,
-                transaction: entry.transactionId,
-            });
+        for (const entry of batch) {
+            try {
+                const filename = `${entry.registrationNumber}.png`;
+                const filepath = path.join(dir, filename);
 
-            const buffer = await QRCode.toBuffer(qrData, {
-                type: "png",
-                margin: 1,
-                width: 256,
-                color: {
-                    dark: "#000000",
-                    light: "#FFFFFF",
-                },
-            });
+                if (fs.existsSync(filepath)) {
+                    skipped++;
+                    continue;
+                }
 
-            fs.writeFileSync(filepath, buffer);
-            generated++;
-            console.log(
-                `[${now()}] ✔ QR generated for ${entry.registrationNumber}`,
-            );
-        } catch {
-            skipped++;
-            console.error(
-                `[${now()}] ✖ QR failed for ${entry.registrationNumber}`,
-            );
+                const qrData = JSON.stringify({
+                    registration: entry.registrationNumber,
+                    name: entry.name,
+                    email: entry.email,
+                    uid: entry.uniqueId,
+                    transaction: entry.transactionId,
+                });
+
+                const buffer = await QRCode.toBuffer(qrData, {
+                    type: "png",
+                    margin: 1,
+                    width: 256,
+                    color: {
+                        dark: "#000000",
+                        light: "#FFFFFF",
+                    },
+                });
+
+                fs.writeFileSync(filepath, buffer);
+                generated++;
+            } catch (error) {
+                skipped++;
+                errors.push(
+                    `QR failed for ${entry.registrationNumber}: ${error.message}`,
+                );
+            }
         }
-    }
+
+        return { generated, skipped, errors };
+    });
 
     const end = Date.now();
     const duration = ((end - start) / 1000).toFixed(2);
@@ -69,11 +114,17 @@ export async function generateQrFiles() {
     console.log(`Started at: ${new Date(start).toISOString()}`);
     console.log(`Ended at:   ${new Date(end).toISOString()}`);
     console.log(`Duration:   ${duration} sec`);
-    console.log(`Generated:  ${generated}`);
-    console.log(`Skipped:    ${skipped}`);
+    console.log(`Generated:  ${results.generated}`);
+    console.log(`Skipped:    ${results.skipped}`);
+    console.log(`Errors:     ${results.errors.length}`);
     console.log(`=============================\n`);
 
-    return { generated, skipped, duration: Number(duration) };
+    return {
+        generated: results.generated,
+        skipped: results.skipped,
+        duration: Number(duration),
+        errors: results.errors,
+    };
 }
 
 export async function generateTicket() {
@@ -93,6 +144,7 @@ export async function generateTicket() {
         throw new Error(`Base ticket template not found at: ${baseTicketPath}`);
     }
 
+    // Load base image once and keep reference
     const baseImage = await loadImage(baseTicketPath);
     const { entries } = await readEntries();
 
@@ -104,68 +156,105 @@ export async function generateTicket() {
         };
     }
 
-    let generated = 0;
-    let skipped = 0;
-
     const start = Date.now();
     console.log(
         `[${now()}] Starting Ticket generation for ${entries.length} entries`,
     );
 
-    for (const entry of entries) {
-        try {
-            const filename = `${entry.registrationNumber}.png`;
-            const filepath = path.join(dir, filename);
+    // Process tickets in smaller batches to manage memory
+    const batchSize = 20; // Smaller batch size for memory-intensive ticket generation
+    const results = await processBatch(entries, batchSize, async (batch) => {
+        let generated = 0;
+        let skipped = 0;
+        const errors = [];
 
-            const canvas = createCanvas(baseImage.width, baseImage.height);
-            const ctx = canvas.getContext("2d");
+        for (const entry of batch) {
+            let canvas = null;
+            let qrImage = null;
 
-            ctx.drawImage(baseImage, 0, 0);
+            try {
+                const filename = `${entry.registrationNumber}.png`;
+                const filepath = path.join(dir, filename);
 
-            const qrPath = path.join(process.cwd(), "qr", filename);
-            const qrImage = await loadImage(qrPath);
+                if (fs.existsSync(filepath)) {
+                    skipped++;
+                    continue;
+                }
 
-            const size = 280 * 2;
-            const x = 260;
-            const y = canvas.height * 0.355;
+                // Create canvas
+                canvas = createCanvas(baseImage.width, baseImage.height);
+                const ctx = canvas.getContext("2d");
 
-            ctx.drawImage(qrImage, x, y, size, size);
+                // Draw base image
+                ctx.drawImage(baseImage, 0, 0);
 
-            ctx.fillStyle = "#FFFFFF";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
+                // Load QR image
+                const qrPath = path.join(process.cwd(), "qr", filename);
+                if (!fs.existsSync(qrPath)) {
+                    errors.push(
+                        `QR file not found for ${entry.registrationNumber}`,
+                    );
+                    skipped++;
+                    continue;
+                }
 
-            const centerX = canvas.width / 2;
+                qrImage = await loadImage(qrPath);
 
-            // Name
-            ctx.font = "bold 70px CinzelDecorative";
-            ctx.fillText(entry.name || "N/A", centerX, canvas.height * 0.705);
+                // Draw QR code
+                const size = 280 * 2;
+                const x = 260;
+                const y = canvas.height * 0.355;
+                ctx.drawImage(qrImage, x, y, size, size);
 
-            // Registration
-            ctx.fillText(
-                entry.registrationNumber,
-                centerX,
-                canvas.height * 0.81,
-            );
+                // Add text
+                ctx.fillStyle = "#FFFFFF";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
 
-            // Desk (static for now)
-            ctx.font = "bold 58px CinzelDecorative";
-            ctx.fillText(`Desk - ${entry.desk}`, centerX, canvas.height * 0.9);
+                const centerX = canvas.width / 2;
 
-            const buffer = canvas.toBuffer("image/png");
-            fs.writeFileSync(filepath, buffer);
+                // Name
+                ctx.font = "bold 70px CinzelDecorative";
+                ctx.fillText(
+                    entry.name || "N/A",
+                    centerX,
+                    canvas.height * 0.705,
+                );
 
-            generated++;
-            console.log(
-                `[${now()}] ✔ Ticket generated for ${entry.registrationNumber}`,
-            );
-        } catch {
-            skipped++;
-            console.warn(
-                `[${now()}] ✖ Ticket failed for ${entry.registrationNumber}`,
-            );
+                // Registration
+                ctx.fillText(
+                    entry.registrationNumber,
+                    centerX,
+                    canvas.height * 0.81,
+                );
+
+                // Desk
+                ctx.font = "bold 58px CinzelDecorative";
+                ctx.fillText(
+                    `Desk - ${entry.desk}`,
+                    centerX,
+                    canvas.height * 0.9,
+                );
+
+                // Generate and save
+                const buffer = canvas.toBuffer("image/png");
+                fs.writeFileSync(filepath, buffer);
+
+                generated++;
+            } catch (error) {
+                skipped++;
+                errors.push(
+                    `Ticket failed for ${entry.registrationNumber}: ${error.message}`,
+                );
+            } finally {
+                // Explicitly clean up references
+                canvas = null;
+                qrImage = null;
+            }
         }
-    }
+
+        return { generated, skipped, errors };
+    });
 
     const end = Date.now();
     const duration = ((end - start) / 1000).toFixed(2);
@@ -174,9 +263,15 @@ export async function generateTicket() {
     console.log(`Started at: ${new Date(start).toISOString()}`);
     console.log(`Ended at:   ${new Date(end).toISOString()}`);
     console.log(`Duration:   ${duration} sec`);
-    console.log(`Generated:  ${generated}`);
-    console.log(`Skipped:    ${skipped}`);
+    console.log(`Generated:  ${results.generated}`);
+    console.log(`Skipped:    ${results.skipped}`);
+    console.log(`Errors:     ${results.errors.length}`);
     console.log(`=================================\n`);
 
-    return { generated, skipped, duration: Number(duration) };
+    return {
+        generated: results.generated,
+        skipped: results.skipped,
+        duration: Number(duration),
+        errors: results.errors,
+    };
 }

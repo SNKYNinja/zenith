@@ -85,6 +85,20 @@ export async function sendEmail(maxEmails: number) {
                                         padding: 0;
                                         list-style-type: disc;
                                     }
+                                    .rules {
+                                        background-color: #fff3cd;
+                                        color: #856404;
+                                        padding: 15px;
+                                        border-radius: 5px;
+                                        font-weight: bold;
+                                        margin: 20px 0;
+                                        line-height: 1.4;
+                                    }
+                                    .rules ul {
+                                        margin: 10px 0 0 20px; /* Adjusted margin for better spacing */
+                                        padding: 0;
+                                        list-style-type: disc;
+                                    }
                                     .desk-info {
                                         background-color: #e7f3fe;
                                         border: 1px solid #b8daff;
@@ -131,15 +145,24 @@ export async function sendEmail(maxEmails: number) {
                                         <i>Only 2000 tickets are being rolled out. Rest will be sent tomorrow</i>
                                     </div>
                                     <p>The wait is over! Your ticket for Garba Night 2k25 is ready and is attached below <span class="emoji">🎉</span></p>
-                                    <p>Bring your ticket along with your ID Cards, and you're all set for an unforgettable evening filled with vibrant music, joyous dance, and cherished memories!</p>
+                                    <p>It is compulsory to bring your ticket and ID card, and you're all set for an unforgettable evening filled with vibrant music, joyous dance, and cherished memories!</p>
                                     <div class="pro-tip">
-                                        <strong>✨ Pro Tips:</strong>
+                                        <strong><span class="emoji">✨</span> Pro Tips:</strong>
                                          <ul>
                                             <li>Entry starts at 3:00 PM</li>
                                             <li>This pass is unique and can only be scanned once, so keep it close and don't share it.</li>
                                             <li>Please join the queue at your assigned desk and open your email prior due to potential internet issues to avoid delay in your entry.</li>
-                                            <li>Please ensure that your attire for Garba night aligns with the university's dress code and reflects decency.</li>
+                                            <!--<li>Please ensure that your attire for Garba night aligns with the university's dress code and reflects decency.</li>-->
                                         </ul>
+                                    </div>
+                                    <div class="rules">
+                                      <strong><span class="emoji">📚</span> Guidelines:</strong>
+                                      <ul>
+                                        <li>Bouncers will be present at the entry. No fake entries will be entertained.</li>
+                                        <li>Please wear decent outfits and avoid revealing ones, keeping in mind the rainy season.</li>
+                                        <li>Maintain discipline throughout the event.</li>
+                                        <li>Any involvement in fights or misconduct will lead to strict action.</li>
+                                      </ul>
                                     </div>
                                     <div class="desk-info">
                                         Boys Desk - A / B / C / D / E / F<br>
