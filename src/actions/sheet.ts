@@ -82,3 +82,14 @@ export async function readEntries(): Promise<{
         return { entries: [], total: 0 };
     }
 }
+
+export async function updateMailSentStatus(rowNumber: number, value: boolean) {
+    const { sheets } = getSheetsClient();
+
+    await sheets.spreadsheets.values.update({
+        spreadsheetId: config.google.spreadsheetId!,
+        range: `Entries!H${rowNumber}`, // adjust to your "Mail Sent Status" column
+        valueInputOption: "RAW",
+        requestBody: { values: [[value]] },
+    });
+}

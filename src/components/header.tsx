@@ -76,7 +76,7 @@ export function HeaderBar() {
     function handleEmail() {
         startEmailTransition(async () => {
             try {
-                await sendEmail();
+                await sendEmail(100);
                 toast.success("Emails sent successfully!");
             } catch (err) {
                 console.error(err);
