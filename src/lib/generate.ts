@@ -150,7 +150,7 @@ export async function generateTicket() {
 
             // Desk (static for now)
             ctx.font = "bold 58px CinzelDecorative";
-            ctx.fillText("Desk F", centerX, canvas.height * 0.9);
+            ctx.fillText(`Desk - ${entry.desk}`, centerX, canvas.height * 0.9);
 
             const buffer = canvas.toBuffer("image/png");
             fs.writeFileSync(filepath, buffer);

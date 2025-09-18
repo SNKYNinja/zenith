@@ -63,14 +63,15 @@ export async function readEntries(): Promise<{
             return {
                 registrationNumber: get("registration number"),
                 name: get("name"),
-                email: get("email"),
-                phoneNumber: get("phone number"),
+                email: get("email address"),
+                phoneNumber: get("contact number"),
                 residencyStatus:
                     get("hosteller/day scholar") ||
                     get("hosteller/Day Scholar".toLowerCase()) ||
                     get("hosteller/day scholar"),
                 uniqueId: (get("unique id") || null) as string | null,
-                transactionId: get("transaction id"),
+                transactionId: get("utr number"),
+                desk: get("desk"),
                 mailSent,
                 rowNumber: idx + 2, // +2 because headers are row 1, data starts at row 2
             };
@@ -88,7 +89,7 @@ export async function updateMailSentStatus(rowNumber: number, value: boolean) {
 
     await sheets.spreadsheets.values.update({
         spreadsheetId: config.google.spreadsheetId!,
-        range: `Entries!H${rowNumber}`, // adjust to your "Mail Sent Status" column
+        range: `Boys!A${rowNumber}`, // adjust to your "Mail Sent Status" column
         valueInputOption: "RAW",
         requestBody: { values: [[value]] },
     });

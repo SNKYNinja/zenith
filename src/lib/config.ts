@@ -5,7 +5,7 @@ export const config = {
     google: {
         spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "",
         // Use a named sheet like "Entries" and cover first 8 columns (A:H)
-        range: process.env.GOOGLE_SHEETS_RANGE || "Entries!A:H",
+        range: process.env.GOOGLE_SHEETS_RANGE || "Boys!A:J",
         serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "",
         // Private key may contain literal \n when stored, normalize safely
         serviceAccountPrivateKey: (
@@ -28,6 +28,7 @@ export const config = {
 
 export type Entry = {
     registrationNumber: string;
+    desk: string;
     name: string;
     email: string;
     phoneNumber: string;

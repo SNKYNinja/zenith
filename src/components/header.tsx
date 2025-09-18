@@ -9,6 +9,11 @@ import { RefreshButton } from "@/components/refresh-button";
 import { generateUniqueIds } from "@/actions/id";
 import { Loader2 } from "lucide-react";
 import { sendEmail } from "@/actions/email";
+import { ConfirmDialog } from "./confirm";
+import { config } from "@/lib/config";
+import { readEntries } from "@/actions/sheet";
+
+const MAX_EMAILS = 800;
 
 export function HeaderBar() {
     const [testMode, setTestMode] = useState(false);
@@ -16,10 +21,20 @@ export function HeaderBar() {
     const [idsPending, startIdsTransition] = useTransition();
     const [ticketsPending, startTicketsTransition] = useTransition();
     const [emailsPending, startEmailTransition] = useTransition();
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState(0);
 
     useEffect(() => {
         const saved = localStorage.getItem("et_test_mode");
         if (saved) setTestMode(saved === "true");
+
+        async function getPending() {
+            const { entries } = await readEntries();
+            const pending = entries.filter((e) => !e.mailSent);
+            setPending(pending.length);
+        }
+
+        getPending();
     }, []);
 
     useEffect(() => {
@@ -76,7 +91,7 @@ export function HeaderBar() {
     function handleEmail() {
         startEmailTransition(async () => {
             try {
-                await sendEmail(100);
+                await sendEmail(MAX_EMAILS);
                 toast.success("Emails sent successfully!");
             } catch (err) {
                 console.error(err);
@@ -117,15 +132,28 @@ export function HeaderBar() {
                         </label>
                     </div>
                     <RefreshButton />
+                    <ConfirmDialog
+                        open={open}
+                        onOpenChange={setOpen}
+                        pendingInfo={{
+                            pendingCount: pending,
+                            sender: process.env.NEXT_PUBLIC_GMAIL_USER!,
+                            sheet: config.google.range,
+                        }}
+                        onConfirm={async () => {
+                            handleEmail();
+                            setOpen(false);
+                        }}
+                    />
                     <Button
-                        variant="destructive"
-                        onClick={handleEmail}
+                        onClick={() => setOpen(true)}
                         disabled={emailsPending}
+                        variant="destructive"
                     >
                         {emailsPending && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                         )}
-                        {emailsPending ? "Sending…" : "Send Mails"}
+                        {emailsPending ? "Sending…" : "Review & Send"}
                     </Button>
                     <Button
                         onClick={handleGenerateTickets}
@@ -133,13 +161,13 @@ export function HeaderBar() {
                         disabled={ticketsPending}
                     >
                         {ticketsPending && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                         )}
                         {ticketsPending ? "Generating…" : "Generate Tickets"}
                     </Button>
                     <Button onClick={handleGenerateIds} disabled={idsPending}>
                         {idsPending && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                         )}
                         {idsPending ? "Generating…" : "Generate Unique IDs"}
                     </Button>

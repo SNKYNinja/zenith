@@ -16,18 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEntries } from "@/actions/entries";
 import { toast } from "sonner";
-
-type Entry = {
-    registrationNumber: string;
-    name: string;
-    email: string;
-    phoneNumber: string;
-    residencyStatus: string;
-    uniqueId: string | null;
-    transactionId: string;
-    mailSent: boolean;
-    rowNumber: number;
-};
+import { Entry } from "@/lib/config";
 
 type GetEntriesResult = {
     entries: Entry[];
@@ -221,14 +210,8 @@ export function EntriesTable({ initialData }: EntriesTableProps) {
                     </TableCaption>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-10">
-                                <Checkbox
-                                    checked={allOnPageSelected}
-                                    onCheckedChange={toggleAllOnPage}
-                                    aria-label="select all on page"
-                                />
-                            </TableHead>
                             <TableHead className="w-10">Sent</TableHead>
+                            <TableHead className="w-16">Desk</TableHead>
                             <TableHead>Registration Number</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Email</TableHead>
@@ -276,19 +259,13 @@ export function EntriesTable({ initialData }: EntriesTableProps) {
                                 <TableRow key={e.rowNumber}>
                                     <TableCell className="align-middle">
                                         <Checkbox
-                                            checked={selected.has(e.rowNumber)}
-                                            onCheckedChange={() =>
-                                                toggleRow(e.rowNumber)
-                                            }
-                                            aria-label={`select row ${e.rowNumber}`}
-                                        />
-                                    </TableCell>
-                                    <TableCell className="align-middle">
-                                        <Checkbox
                                             checked={e.mailSent}
                                             disabled
                                             aria-label="sent status"
                                         />
+                                    </TableCell>
+                                    <TableCell className="align-middle">
+                                        {e.desk}
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap align-middle">
                                         {e.registrationNumber}

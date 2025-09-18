@@ -8,7 +8,7 @@ export async function sendEmail(maxEmails: number) {
     const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
-            user: process.env.GMAIL_USER,
+            user: process.env.NEXT_PUBLIC_GMAIL_USER,
             pass: process.env.GMAIL_APP_PASSWORD,
         },
         pool: true,
@@ -115,16 +115,22 @@ export async function sendEmail(maxEmails: number) {
                                         width: 100%;
                                         margin: 20px 0;
                                     }
+                                    span.emoji {
+                                        font-size: 24px;
+                                        line-height: 1em;
+                                        display: inline-block;
+                                        vertical-align: middle;
+                                    }
                                 </style>
                             </head>
                             <body>
                                 <div class="container">
-                                    <h1>🎉 Your Garba Night Tickets Are Ready</h1>
+                                    <h1><span class="emoji">🎉</span> Your Garba Night Tickets Are Ready</h1>
                                     <p><strong>Dear ${entry.name},</strong></p>
                                     <div class="alert-info">
                                         <i>Only 2000 tickets are being rolled out. Rest will be sent tomorrow</i>
                                     </div>
-                                    <p>The wait is over! Your ticket for Garba Night 2k25 is ready and is attached below.🎉</p>
+                                    <p>The wait is over! Your ticket for Garba Night 2k25 is ready and is attached below <span class="emoji">🎉</span></p>
                                     <p>Bring your ticket along with your ID Cards, and you're all set for an unforgettable evening filled with vibrant music, joyous dance, and cherished memories!</p>
                                     <div class="pro-tip">
                                         <strong>✨ Pro Tips:</strong>
