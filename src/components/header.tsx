@@ -13,7 +13,7 @@ import { ConfirmDialog } from "./confirm";
 import { config } from "@/lib/config";
 import { readEntries } from "@/actions/sheet";
 
-const MAX_EMAILS = 800;
+const MAX_EMAILS = 850;
 
 export function HeaderBar() {
     const [testMode, setTestMode] = useState(false);
